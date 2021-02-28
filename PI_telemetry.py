@@ -6,7 +6,9 @@ import XPLMPlanes as planes
 import XPLMUtilities as utils
 import XPLMProcessing as proc
 import XPLMDataAccess as data
+import XPLMMenus as menu
 
+from XPPython3 import xp
 from os import path
 
 
@@ -25,6 +27,10 @@ XPL_FOLDER_TELEMETRY = path.join(XPL_FOLDER_OUTPUT, 'Telemetry')
 
 LABEL_GS = 'gs'
 LABEL_HEIGHT = 'height'
+
+MENU_TELEMETRY = 0 # Main plugin menu
+MENU_RESET = 1 # Menu item to start recording telemetry for a new flight
+
 
 def m_to_ft(m):
     return m * 3.28084
@@ -51,8 +57,8 @@ def _get_airplane_icao(acf_path):
 
 
 class PythonInterface:
-    RECORD_INTERVAL = 5 # seconds
-    MAX_BUF_SIZE = 2 # elements
+    RECORD_INTERVAL = 5 # seconds - will be halved during t/o and ldg
+    MAX_BUF_SIZE = 128 # elements
 
     FRAME_CONTENTS = [
         # Flight model
@@ -117,6 +123,8 @@ class PythonInterface:
         self.h_index = None # Index of height in frame data
         self.cur_gs = 0
         self.cur_height = 0
+        self.menu_id = None
+        self.menu_item_reset_id = None
 
         self._create_folders()
 
@@ -129,32 +137,55 @@ class PythonInterface:
     def XPluginEnable(self):
         proc.XPLMRegisterFlightLoopCallback(self.flight_loop_clbk, self.RECORD_INTERVAL, None)
 
-        self.init_telemetry(new=True)
+        # Register menu
+        self.menu_id = xp.createMenu("Telemetry", None, MENU_TELEMETRY, self._menu_clbk, [])
+        self.menu_item_reset_id = xp.appendMenuItem(self.menu_id, "Record new flight", MENU_RESET)
+
+        self.init_telemetry()
 
         return 1
 
-    def init_telemetry(self, *, new=False):
+    def _menu_clbk(self, menu_id, item_id):
+        if item_id == MENU_RESET:
+            print('New telemetry log manually initiated')
+
+            self.close_output_file()
+            self.init_telemetry()
+
+    def init_telemetry(self):
         """Initialize telemetry for a new plane."""
-        self.aircraft_icao, self.acf_file_path = self.get_user_aircraft()
+        try:
+            self.aircraft_icao, self.acf_file_path = self.get_user_aircraft()
 
-        self.num_engines = data.XPLMGetDatai(
-            data.XPLMFindDataRef('sim/aircraft/engine/acf_num_engines')
-        )
+            self.num_engines = data.XPLMGetDatai(
+                data.XPLMFindDataRef('sim/aircraft/engine/acf_num_engines')
+            )
 
-        self.init_drefs() # This must happen after num_engines is retrieved
-        self.open_output_file(new=new) # This must happen after init_drefs()
+            self.init_drefs() # This must happen after num_engines is retrieved
+            self.open_output_file() # This must happen after init_drefs()
+        except Exception as exc:
+            # This can happen if the ACF file is still begin read during initialization.
+            # During the next flight model frame, a new attempt will be made
+            print('Error during telemetry initialisation - telemetry will be initialized as part of the next flight model frame')
+            print(exc)
 
     def XPluginDisable(self):
         proc.XPLMUnregisterFlightLoopCallback(self.flight_loop_clbk, None)
         self.close_output_file()
 
+        # Remove menu items
+        menu.XPLMDestroyMenu(self.menu_id)
+
+        self.menu_id = None
+        self.menu_item_reset_id = None
+
     def XPluginReceiveMessage(self, from_, message, param):
         if message == plugin.XPLM_MSG_PLANE_LOADED and param == planes.XPLM_USER_AIRCRAFT:
-            self.init_telemetry(new=True)
+            self.init_telemetry()
         elif message == plugin.XPLM_MSG_AIRPORT_LOADED:
-            self.init_telemetry(new=True)
+            self.init_telemetry()
         elif message == plugin.XPLM_MSG_LIVERY_LOADED and param == planes.XPLM_USER_AIRCRAFT:
-            self.open_output_file(new=True) # Plane is the same, no need to initialize telemetry again
+            self.open_output_file() # Plane is the same, no need to initialize telemetry again
         elif message == plugin.XPLM_MSG_PLANE_UNLOADED and param == planes.XPLM_USER_AIRCRAFT:
             self.close_output_file()
         elif message == plugin.XPLM_MSG_PLANE_CRASHED:
@@ -179,24 +210,24 @@ class PythonInterface:
         return acf_icao, out_path
 
     def flight_loop_clbk(self, since_last_call, since_last_fl, counter, _):
+        if not self.file:
+            self.init_telemetry()
+
         self.record_frame()
 
         # Compute new record interval
         record_interval = self.RECORD_INTERVAL
 
-        if self.buffer:
-            last_frame = self.buffer[-1]
-
-            if self.cur_gs > 25 and self.cur_height < 1500: # Increase resolution upon take-off/landing
-                record_interval = math.floor(float(record_interval) / 2)
+        if self.cur_gs > 25 and self.cur_height < 1500: # Increase resolution upon take-off/landing
+            record_interval = math.floor(float(record_interval) / 2)
 
         return max(1, record_interval)
 
-    def open_output_file(self, *, new=True):
+    def open_output_file(self):
         if self.aircraft_icao == self.AIRCRAFT_ICAO_PLACEHOLDER:
             return
 
-        if (new and not self.clean_file) or not self.file:
+        if not self.clean_file or not self.file:
                 self.new_telemetry_file_path()
 
         if self.file:
@@ -214,6 +245,8 @@ class PythonInterface:
                 print('CRASH', file=self.file)
 
             self.file.close()
+            self.clean_file = True
+            self.file = None
 
     def record_frame(self):
         """Record one telemetry frame."""
@@ -222,7 +255,7 @@ class PythonInterface:
         self.cur_height = m_to_ft(frame[self.h_index])
         self.cur_gs = ms_to_kts(abs(frame[self.gs_index]))
 
-        if self.cur_height < 1 and self.cur_gs < 1:
+        if self.cur_height < 50 and self.cur_gs < 1:
             return # Skip frame if acf is stationary
 
         if (self.buffer and frame != self.buffer[-1]) or not self.buffer:
