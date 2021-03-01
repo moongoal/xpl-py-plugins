@@ -79,7 +79,6 @@ class PythonInterface:
         ('sim/flightmodel/position/psi', DTYPE_FLOAT, 'yaw', None),
         ('sim/flightmodel/position/true_theta', DTYPE_FLOAT, 'pitch_terr', None),
         ('sim/flightmodel/position/true_phi', DTYPE_FLOAT, 'roll_terr', None),
-        ('sim/flightmodel/misc/cgz_ref_to_default', DTYPE_FLOAT, 'cg_shift', None),
         ('sim/flightmodel/misc/machno', DTYPE_FLOAT, 'mach_no', None),
 
         # Weather
