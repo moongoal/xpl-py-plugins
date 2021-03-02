@@ -1,4 +1,5 @@
 import math
+import time
 import os
 import datetime as dt
 import XPLMPlugin as plugin
@@ -264,7 +265,7 @@ class PythonInterface:
             self.flush_buffer()
 
     def get_frame(self):
-        return [self.read_dataref(dref_id, dref_type, dref_n) for dref_id, dref_type, dref_n in self.drefs]
+        return [time.time()] + [self.read_dataref(dref_id, dref_type, dref_n) for dref_id, dref_type, dref_n in self.drefs]
 
     def read_dataref(self, dref_id, dref_type, dref_n):
         params = [dref_id]
@@ -277,6 +278,8 @@ class PythonInterface:
     def init_drefs(self):
         self.drefs.clear()
         self.header.clear()
+
+        self.header.append('t')
 
         for dref_name, dref_type, dref_label, dref_n in self.FRAME_CONTENTS:
             dref_id = data.XPLMFindDataRef(dref_name)
