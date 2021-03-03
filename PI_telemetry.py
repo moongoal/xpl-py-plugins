@@ -24,7 +24,7 @@ N_ENGINES = object()
 
 XPL_ROOT = utils.XPLMGetSystemPath()
 XPL_FOLDER_OUTPUT = path.join(XPL_ROOT, 'Output')
-XPL_FOLDER_TELEMETRY = path.join(XPL_FOLDER_OUTPUT, 'Telemetry')
+XPL_FOLDER_TELEMETRY = path.join(XPL_FOLDER_OUTPUT, 'telemetry')
 
 LABEL_GS = 'gs'
 LABEL_HEIGHT = 'height'

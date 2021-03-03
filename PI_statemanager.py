@@ -171,6 +171,7 @@ class PythonInterface:
         self.common_drefs = {} # Datarefs from the sim
         self.acf_drefs = {} # Aircraft-specific datarefs
         self.win_save = None
+        self.is_aircraft_loaded = False
 
         # List of states shown in the menu.
         # The index is the refcon (- MENU_STATE_BASE_REFCON), the value is the label/file name
@@ -224,18 +225,20 @@ class PythonInterface:
             del cfg[x]
 
     def load_acf_config(self):
+        print('Loading aircraft config file...')
         self.acf_drefs = _read_config_file(self.aircraft_config_file)
 
         self.init_config_drefs(self.acf_drefs)
 
     def add_menu_entries(self):
-        states = self.get_aircraft_state_list()
+        if self.is_aircraft_loaded:
+            states = self.get_aircraft_state_list()
 
-        if states:
-            for s in states:
-                self.show_state(s)
+            if states:
+                for s in states:
+                    self.show_state(s)
 
-            menu.XPLMAppendMenuSeparator(self.menu_id)
+                menu.XPLMAppendMenuSeparator(self.menu_id)
 
         self.menu_item_save_id = xp.appendMenuItem(self.menu_id, "Save current state", MENU_SAVE)
         self.menu_item_reset_id = xp.appendMenuItem(self.menu_id, "Reload state list", MENU_RELOAD)
@@ -256,7 +259,6 @@ class PythonInterface:
 
     def _menu_clbk(self, menu_id, item_id):
         if item_id == MENU_RELOAD:
-            print('Reloading aircraft config file & state list...')
             self.load_acf_config()
             self.reset_menu_entries()
         elif item_id == MENU_SAVE:
@@ -295,17 +297,19 @@ class PythonInterface:
             self.reset_menu_entries()
 
     def _create_folders(self):
-        if self.aircraft_config_file:
-            state_folder = self.aircraft_state_folder
+        state_folder = self.aircraft_state_folder
 
-            os.makedirs(state_folder, exist_ok=True)
+        os.makedirs(state_folder, exist_ok=True)
 
     def reset_user_aircraft(self):
         """Set the user aircraft's ACF file path, ensure it has the proper folders created and reloads the state list."""
-        _, self.acf_file_path = planes.XPLMGetNthAircraftModel(planes.XPLM_USER_AIRCRAFT)
+        acf_file_name, self.acf_file_path = planes.XPLMGetNthAircraftModel(planes.XPLM_USER_AIRCRAFT)
 
-        self._create_folders()
-        self.load_acf_config()
+        self.is_aircraft_loaded = bool(acf_file_name)
+
+        if self.is_aircraft_loaded:
+            self._create_folders()
+            self.load_acf_config()
 
     def read_dataref(self, dref_id, dref_type, dref_n):
         return self.DREF_READ[dref_type](dref_id, dref_n)
@@ -397,7 +401,10 @@ class SaveStateWindow(MGWidget):
                 return 1
             elif message == swidgets.xpMsg_PushButtonPressed:
                 if param1 == self.btn_save:
-                    self.save_clbk(self.txt_state_name.descriptor)
+                    state_name = self.txt_state_name.descriptor
+
+                    if state_name:
+                        self.save_clbk(state_name)
 
                     return 1
             elif message == dwidgets.xpMsg_Shown:
