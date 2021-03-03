@@ -3,12 +3,14 @@ import csv
 import XPLMPlugin as plugin
 import XPLMPlanes as planes
 import XPLMUtilities as utils
-import XPLMProcessing as proc
 import XPLMDataAccess as data
 import XPLMMenus as menu
+import XPStandardWidgets as swidgets
+import XPWidgetDefs as dwidgets
 
 from os import path
 from XPPython3 import xp
+from mgwidget import MGWidget, MGButton, MGTextBox, get_screen_size
 
 
 STATES_FOLDER_NAME = 'deck_states'
@@ -168,6 +170,7 @@ class PythonInterface:
         self.menu_item_save_id = None
         self.common_drefs = {} # Datarefs from the sim
         self.acf_drefs = {} # Aircraft-specific datarefs
+        self.win_save = None
 
         # List of states shown in the menu.
         # The index is the refcon (- MENU_STATE_BASE_REFCON), the value is the label/file name
@@ -183,7 +186,9 @@ class PythonInterface:
         )
 
     def XPluginStop(self):
-        pass
+        if self.win_save:
+            self.win_save.destroy()
+            self.win_save = None
 
     def XPluginEnable(self):
         # Register menu
@@ -193,6 +198,7 @@ class PythonInterface:
         self.menu_state_entries.clear()
         self.reset_user_aircraft()
         self.add_menu_entries()
+        self.create_windows()
 
         return 1
 
@@ -231,8 +237,8 @@ class PythonInterface:
 
             menu.XPLMAppendMenuSeparator(self.menu_id)
 
-        self.menu_item_reset_id = xp.appendMenuItem(self.menu_id, "Reload state list", MENU_RELOAD)
         self.menu_item_save_id = xp.appendMenuItem(self.menu_id, "Save current state", MENU_SAVE)
+        self.menu_item_reset_id = xp.appendMenuItem(self.menu_id, "Reload state list", MENU_RELOAD)
 
     def show_state(self, state_name):
         xp.appendMenuItem(self.menu_id, state_name, MENU_STATE_BASE_REFCON + len(self.menu_state_entries))
@@ -254,11 +260,7 @@ class PythonInterface:
             self.load_acf_config()
             self.reset_menu_entries()
         elif item_id == MENU_SAVE:
-            # TODO: save state
-            print('Saving aircraft state...')
-            self.save_aircraft_state('something')
-            self.load_acf_config()
-            self.reset_menu_entries()
+            self.win_save.is_visible = True
         elif item_id >= MENU_STATE_BASE_REFCON:
             state_idx = item_id - MENU_STATE_BASE_REFCON
             state_name = self.menu_state_entries[state_idx]
@@ -277,9 +279,6 @@ class PythonInterface:
         _write_state_file(state_path, state)
 
     def XPluginDisable(self):
-        proc.XPLMUnregisterFlightLoopCallback(self.flight_loop_clbk, None)
-        self.close_output_file()
-
         # Remove menu items
         menu.XPLMDestroyMenu(self.menu_id)
 
@@ -296,9 +295,10 @@ class PythonInterface:
             self.reset_menu_entries()
 
     def _create_folders(self):
-        state_folder = self.aircraft_state_folder
+        if self.aircraft_config_file:
+            state_folder = self.aircraft_state_folder
 
-        os.makedirs(state_folder, exist_ok=True)
+            os.makedirs(state_folder, exist_ok=True)
 
     def reset_user_aircraft(self):
         """Set the user aircraft's ACF file path, ensure it has the proper folders created and reloads the state list."""
@@ -330,6 +330,18 @@ class PythonInterface:
         for dref_name, (dref_type, dref_n, dref_id) in drefs.items():
             self.write_dataref(dref_id, state[dref_name], dref_type)
 
+    def create_windows(self):
+        self.win_save = SaveStateWindow(self._save_state_clbk)
+
+    def _save_state_clbk(self, state_name):
+        print('Saving aircraft state...')
+
+        self.save_aircraft_state(state_name)
+        self.load_acf_config()
+        self.reset_menu_entries()
+
+        self.win_save.is_visible = False
+
     @property
     def aircraft_folder(self):
         return path.dirname(self.acf_file_path)
@@ -342,3 +354,57 @@ class PythonInterface:
     def aircraft_config_file(self):
         """Plugin specific config file"""
         return path.join(self.aircraft_folder, CONFIG_FILE_NAME)
+
+
+class SaveStateWindow(MGWidget):
+    def __init__(self, save_clbk):
+        self.save_clbk = save_clbk
+
+        # Create Window
+        scr_width, scr_height = get_screen_size()
+        wnd_width = 400
+        wnd_height = 75
+
+        super().__init__(
+            swidgets.xpWidgetClass_MainWindow,
+            "Save state",
+            ((scr_width - wnd_width) // 2, (scr_height - wnd_height) // 2, wnd_width, wnd_height),
+            props={
+                swidgets.xpProperty_MainWindowType: swidgets.xpMainWindowStyle_MainWindow,
+                swidgets.xpProperty_MainWindowHasCloseBoxes: 1
+            }
+        )
+
+        self.add_callback(self._win_callback)
+
+        # Add widgets
+        txt_state_name_y = 30
+        self.txt_state_name = MGTextBox("", (20, txt_state_name_y, wnd_width - 40), parent=self, max_len=256)
+
+        btn_save_y = txt_state_name_y + MGTextBox.HEIGHT + 5
+        btn_save_width = 100
+        self.btn_save = MGButton(
+            "Save",
+            ((wnd_width - btn_save_width) // 2, btn_save_y, btn_save_width),
+            parent=self
+        )
+
+    def _win_callback(self, message, widget_id, param1, param2):
+        if widget_id == self:
+            if message == swidgets.xpMessage_CloseButtonPushed:
+                self.is_visible = False
+
+                return 1
+            elif message == swidgets.xpMsg_PushButtonPressed:
+                if param1 == self.btn_save:
+                    self.save_clbk(self.txt_state_name.descriptor)
+
+                    return 1
+            elif message == dwidgets.xpMsg_Shown:
+                if param1 == self:
+                    self.txt_state_name.focus = True
+                    self.txt_state_name.select_all()
+
+                    return 1
+
+        return 0
