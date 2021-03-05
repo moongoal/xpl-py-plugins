@@ -107,7 +107,13 @@ def _read_state_file(path, dref_db):
         for record in f_csv:
             try:
                 dref_name, dref_value = record
-                dref_type = dref_db[dref_name][0]
+
+                try:
+                    dref_type = dref_db[dref_name][0]
+                except KeyError:
+                    print('statemanager: Warning Invalid dataref %s. Skipping...' % dref_name)
+
+                    continue
 
                 drefs[dref_name] = dref_type_conversions[dref_type](dref_value)
             except Exception:

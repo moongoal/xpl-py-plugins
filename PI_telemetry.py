@@ -157,12 +157,13 @@ class PythonInterface:
         try:
             self.aircraft_icao, self.acf_file_path = self.get_user_aircraft()
 
-            self.num_engines = data.XPLMGetDatai(
-                data.XPLMFindDataRef('sim/aircraft/engine/acf_num_engines')
-            )
+            if self.is_aircraft_loaded:
+                self.num_engines = data.XPLMGetDatai(
+                    data.XPLMFindDataRef('sim/aircraft/engine/acf_num_engines')
+                )
 
-            self.init_drefs() # This must happen after num_engines is retrieved
-            self.open_output_file() # This must happen after init_drefs()
+                self.init_drefs() # This must happen after num_engines is retrieved
+                self.open_output_file() # This must happen after init_drefs()
         except Exception as exc:
             # This can happen if the ACF file is still begin read during initialization.
             # During the next flight model frame, a new attempt will be made
@@ -205,7 +206,8 @@ class PythonInterface:
     def get_user_aircraft(self):
         """Return the user aircraft's ICAO code and ACF file path."""
         out_file, out_path = planes.XPLMGetNthAircraftModel(planes.XPLM_USER_AIRCRAFT)
-        acf_icao = _get_airplane_icao(out_path)
+
+        acf_icao = _get_airplane_icao(out_path) if out_file else self.AIRCRAFT_ICAO_PLACEHOLDER
 
         return acf_icao, out_path
 
@@ -218,7 +220,7 @@ class PythonInterface:
         # Compute new record interval
         record_interval = self.RECORD_INTERVAL
 
-        if self.cur_gs > 25 and self.cur_height < 1500: # Increase resolution upon take-off/landing
+        if self.cur_gs > 25 and self.cur_height < 2000: # Increase resolution upon take-off/landing
             record_interval = math.floor(float(record_interval) / 2)
 
         return max(1, record_interval)
@@ -228,7 +230,7 @@ class PythonInterface:
             return
 
         if not self.clean_file or not self.file:
-                self.new_telemetry_file_path()
+            self.new_telemetry_file_path()
 
         if self.file:
             self.file.close()
@@ -304,3 +306,7 @@ class PythonInterface:
     @property
     def aircraft_folder(self):
         return path.dirname(self.acf_file_path)
+
+    @property
+    def is_aircraft_loaded(self):
+        return self.aircraft_icao != self.AIRCRAFT_ICAO_PLACEHOLDER
