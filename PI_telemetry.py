@@ -255,11 +255,7 @@ class PythonInterface:
         self.cur_height = m_to_ft(frame[self.h_index])
         self.cur_gs = ms_to_kts(abs(frame[self.gs_index]))
 
-        if self.cur_height < 50 and self.cur_gs < 1:
-            return # Skip frame if acf is stationary
-
-        if (self.buffer and frame != self.buffer[-1]) or not self.buffer:
-            self.buffer.append(frame)
+        self.buffer.append(frame)
 
         if len(self.buffer) >= self.MAX_BUF_SIZE:
             self.flush_buffer()
