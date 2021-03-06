@@ -81,6 +81,10 @@ class PythonInterface:
         ('sim/flightmodel/position/true_theta', DTYPE_FLOAT, 'pitch_terr', None),
         ('sim/flightmodel/position/true_phi', DTYPE_FLOAT, 'roll_terr', None),
         ('sim/flightmodel/misc/machno', DTYPE_FLOAT, 'mach_no', None),
+        ('sim/flightmodel/controls/elv_trim', DTYPE_FLOAT, 'elev_trim', None),
+        ('sim/flightmodel/controls/flaprat', DTYPE_FLOAT, 'flap1_ratio', None),
+        ('sim/flightmodel/controls/flap2rat', DTYPE_FLOAT, 'flap2_ratio', None),
+        ('sim/flightmodel/controls/speedbrake_ratio', DTYPE_FLOAT, 'speed_brake', None),
 
         # Weather
         ('sim/weather/rain_percent', DTYPE_FLOAT, 'rain_percent', None),
