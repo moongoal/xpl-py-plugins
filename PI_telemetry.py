@@ -197,7 +197,7 @@ class PythonInterface:
             self.close_output_file(crash=True)
 
     def new_telemetry_file_path(self):
-        self.telemetry_file_path = path.join(XPL_FOLDER_TELEMETRY, '{icao}-{date}.cst'.format(
+        self.telemetry_file_path = path.join(XPL_FOLDER_TELEMETRY, '{icao}-{date}.csv'.format(
             icao=self.aircraft_icao,
             date=dt.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         ))
