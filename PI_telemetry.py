@@ -65,6 +65,9 @@ class PythonInterface:
         # Flight model
         ('sim/flightmodel/position/latitude', DTYPE_DOUBLE, 'latitude', None),
         ('sim/flightmodel/position/longitude', DTYPE_DOUBLE, 'longitude', None),
+        ('sim/flightmodel/position/local_x', DTYPE_DOUBLE, 'local_x', None),
+        ('sim/flightmodel/position/local_y', DTYPE_DOUBLE, 'local_y', None),
+        ('sim/flightmodel/position/local_z', DTYPE_DOUBLE, 'local_z', None),
         ('sim/flightmodel/position/elevation', DTYPE_DOUBLE, 'altitude', None),
         ('sim/flightmodel/position/y_agl', DTYPE_FLOAT, LABEL_HEIGHT, None),
         ('sim/flightmodel/position/groundspeed', DTYPE_FLOAT, LABEL_GS, None),
