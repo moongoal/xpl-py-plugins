@@ -228,9 +228,9 @@ class PythonInterface:
         record_interval = self.RECORD_INTERVAL
 
         if self.cur_gs > 25 and self.cur_height < 2000: # Increase resolution upon take-off/landing
-            record_interval = math.floor(float(record_interval) / 2)
+            record_interval = 1
 
-        return max(1, record_interval)
+        return record_interval
 
     def open_output_file(self):
         if self.aircraft_icao == self.AIRCRAFT_ICAO_PLACEHOLDER:
